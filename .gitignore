@@ -10,4 +10,5 @@ gen
 *.test
 *.out
 go.work
-.env
+.env*
+!.env.example
