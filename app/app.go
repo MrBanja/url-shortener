@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mrbanja/url-shortener/api"
+	"github.com/mrbanja/url-shortener/api/middleware"
 	"github.com/mrbanja/url-shortener/dal"
 )
 
@@ -26,17 +27,24 @@ func Run(ctx context.Context, opt *Options) error {
 		ReplaceAttr: nil,
 	}))
 
-	repo := dal.New()
+	repo := dal.MustNew(ctx, opt.RedisConnStr)
+	defer func() { _ = repo.Close() }()
 	svc := api.New(repo, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /encode", svc.Encode)
 	mux.HandleFunc("GET /decode", svc.Decode)
-	mux.HandleFunc("GET /health", func(_ http.ResponseWriter, _ *http.Request) {})
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := repo.Ping(r.Context()); err != nil {
+			logger.Error("health check", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	})
 
 	server := &http.Server{
 		Addr:    opt.Addr,
-		Handler: mux,
+		Handler: middleware.Recover(mux, logger),
 
 		BaseContext: func(listener net.Listener) context.Context { return ctx },
 	}
