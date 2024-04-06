@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/cors"
+
 	"github.com/mrbanja/url-shortener/api"
 	"github.com/mrbanja/url-shortener/api/middleware"
 	"github.com/mrbanja/url-shortener/dal"
@@ -42,9 +44,12 @@ func Run(ctx context.Context, opt *Options) error {
 		}
 	})
 
+	handler := middleware.Recover(mux, logger)
+	handler = cors.Default().Handler(handler)
+
 	server := &http.Server{
 		Addr:    opt.Addr,
-		Handler: middleware.Recover(mux, logger),
+		Handler: handler,
 
 		BaseContext: func(listener net.Listener) context.Context { return ctx },
 	}
